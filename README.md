@@ -61,7 +61,7 @@ open("master_public.pem", "wb").write(
 ### `client.yml`
 
 ```yaml
-room: "Аудитория-101"
+room: "101"
 network_name: "school-lan"
 named_networks:
   school-lan: "192.168.10.0/24"
