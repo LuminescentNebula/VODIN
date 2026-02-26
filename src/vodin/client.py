@@ -166,13 +166,8 @@ def detect_lease_expiration_epoch(interface_name: str, ip_address: str) -> int |
     return _detect_linux_lease_expiration_epoch(interface_name)
 
 
-def resolve_expiration_epoch(interface_name: str, ip_address: str, fallback_ttl_seconds: int | None) -> int | None:
-    detected = detect_lease_expiration_epoch(interface_name, ip_address)
-    if detected is not None:
-        return detected
-    if fallback_ttl_seconds and fallback_ttl_seconds > 0:
-        return int(time.time()) + fallback_ttl_seconds
-    return None
+def resolve_expiration_epoch(interface_name: str, ip_address: str) -> int | None:
+    return detect_lease_expiration_epoch(interface_name, ip_address)
 
 
 class ClientService:
@@ -187,8 +182,6 @@ class ClientService:
         self.watchdog_interval_seconds = int(cfg.get("watchdog_interval_seconds", 15))
         self.watchdog_fast_interval_seconds = int(cfg.get("watchdog_fast_interval_seconds", 5))
         self.watchdog_lease_warning_seconds = int(cfg.get("watchdog_lease_warning_seconds", 60))
-        fallback_ttl = cfg.get("default_lease_ttl_seconds")
-        self.default_lease_ttl_seconds = int(fallback_ttl) if fallback_ttl is not None else None
         self.master_pub_key = load_public_key(cfg["master_public_key_path"])
         self.client_priv_key = load_private_key(cfg["client_private_key_path"])
         self.state_store = JsonStore(cfg.get("state_path", "data/client_state.json"))
@@ -206,7 +199,7 @@ class ClientService:
             "room": self.room,
             "hostname": socket.gethostname(),
             "veyon-version": self.veyon_version,
-            "exp": resolve_expiration_epoch(iface.name, iface.ip, self.default_lease_ttl_seconds),
+            "exp": resolve_expiration_epoch(iface.name, iface.ip),
             "ip": iface.ip,
             "client_port": self.client_port,
             "client_public_key": export_public_key(self.client_priv_key.public_key()),
