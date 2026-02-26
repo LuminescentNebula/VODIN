@@ -5,8 +5,10 @@ import json
 import logging
 import socket
 import subprocess
+import re
+import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -56,11 +58,7 @@ def _parse_nmcli_options(output: str) -> dict[str, str]:
     return options
 
 
-def detect_lease_expiration_epoch(interface_name: str) -> int | None:
-    """Best-effort DHCP lease expiration timestamp (UTC epoch).
-
-    Returns None when OS/tooling does not expose lease expiration.
-    """
+def _detect_linux_lease_expiration_epoch(interface_name: str) -> int | None:
     try:
         completed = subprocess.run(
             ["nmcli", "-t", "-f", "DHCP4.OPTION", "device", "show", interface_name],
@@ -92,6 +90,91 @@ def detect_lease_expiration_epoch(interface_name: str) -> int | None:
     return None
 
 
+def _detect_windows_lease_expiration_epoch(ip_address: str) -> int | None:
+    script = (
+        "$nics = Get-CimInstance Win32_NetworkAdapterConfiguration | Where-Object {$_.IPEnabled -and $_.DHCPEnabled};"
+        "$rows = foreach ($nic in $nics) {"
+        "if (-not $nic.DHCPLeaseExpires) { continue };"
+        "foreach ($ip in $nic.IPAddress) { [PSCustomObject]@{ip=$ip; lease=$nic.DHCPLeaseExpires} }"
+        "};"
+        "$rows | ConvertTo-Json -Compress"
+    )
+    try:
+        completed = subprocess.run(
+            ["powershell", "-NoProfile", "-Command", script],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=5,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+    if completed.returncode != 0:
+        return None
+
+    payload = (completed.stdout or "").strip()
+    if not payload:
+        return None
+
+    try:
+        data = json.loads(payload)
+    except json.JSONDecodeError:
+        return None
+
+    rows = data if isinstance(data, list) else [data]
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        if row.get("ip") != ip_address:
+            continue
+        lease = row.get("lease")
+        if not isinstance(lease, str):
+            continue
+        parsed = _parse_windows_dmtf_to_epoch(lease)
+        if parsed is not None:
+            return parsed
+
+    return None
+
+
+def _parse_windows_dmtf_to_epoch(value: str) -> int | None:
+    # Example: 20261231235959.000000+180
+    match = re.fullmatch(r"(\d{14})\.\d{6}([+-])(\d{3})", value.strip())
+    if not match:
+        return None
+
+    base_raw, sign, offset_minutes_raw = match.groups()
+    try:
+        local_dt = datetime.strptime(base_raw, "%Y%m%d%H%M%S")
+        offset_minutes = int(offset_minutes_raw)
+    except ValueError:
+        return None
+
+    offset = timedelta(minutes=offset_minutes)
+    if sign == "-":
+        offset = -offset
+
+    utc_dt = (local_dt - offset).replace(tzinfo=timezone.utc)
+    return int(utc_dt.timestamp())
+
+
+def detect_lease_expiration_epoch(interface_name: str, ip_address: str) -> int | None:
+    """Best-effort DHCP lease expiration timestamp (UTC epoch)."""
+    if sys.platform.startswith("win"):
+        return _detect_windows_lease_expiration_epoch(ip_address)
+    return _detect_linux_lease_expiration_epoch(interface_name)
+
+
+def resolve_expiration_epoch(interface_name: str, ip_address: str, fallback_ttl_seconds: int | None) -> int | None:
+    detected = detect_lease_expiration_epoch(interface_name, ip_address)
+    if detected is not None:
+        return detected
+    if fallback_ttl_seconds and fallback_ttl_seconds > 0:
+        return int(time.time()) + fallback_ttl_seconds
+    return None
+
+
 class ClientService:
     def __init__(self, config: AppConfig) -> None:
         cfg = config.data
@@ -102,6 +185,8 @@ class ClientService:
         self.client_port = int(cfg.get("client_port", 8765))
         self.veyon_version = detect_veyon_version()
         self.watchdog_interval_seconds = int(cfg.get("watchdog_interval_seconds", 15))
+        fallback_ttl = cfg.get("default_lease_ttl_seconds")
+        self.default_lease_ttl_seconds = int(fallback_ttl) if fallback_ttl is not None else None
         self.master_pub_key = load_public_key(cfg["master_public_key_path"])
         self.client_priv_key = load_private_key(cfg["client_private_key_path"])
         self.state_store = JsonStore(cfg.get("state_path", "data/client_state.json"))
@@ -119,7 +204,7 @@ class ClientService:
             "room": self.room,
             "hostname": socket.gethostname(),
             "veyon-version": self.veyon_version,
-            "exp": detect_lease_expiration_epoch(iface.name),
+            "exp": resolve_expiration_epoch(iface.name, iface.ip, self.default_lease_ttl_seconds),
             "ip": iface.ip,
             "client_port": self.client_port,
             "client_public_key": export_public_key(self.client_priv_key.public_key()),

@@ -4,7 +4,8 @@ pytest.importorskip("httpx")
 pytest.importorskip("fastapi")
 pytest.importorskip("pydantic")
 
-from vodin.client import _parse_nmcli_options
+import vodin.client as client
+from vodin.client import _parse_nmcli_options, _parse_windows_dmtf_to_epoch, resolve_expiration_epoch
 
 
 def test_parse_nmcli_options():
@@ -12,3 +13,25 @@ def test_parse_nmcli_options():
     parsed = _parse_nmcli_options(raw)
     assert parsed["expiry"] == "1717000000"
     assert parsed["dhcp_lease_time"] == "3600"
+
+
+def test_resolve_expiration_epoch_uses_fallback(monkeypatch):
+    monkeypatch.setattr(client, "detect_lease_expiration_epoch", lambda *_: None)
+    monkeypatch.setattr(client.time, "time", lambda: 1_000)
+    assert resolve_expiration_epoch("eth0", "192.168.1.10", 120) == 1_120
+
+
+def test_detect_windows_lease_expiration_epoch_by_ip(monkeypatch):
+    sample = '[{"ip":"192.168.1.10","lease":"20250101000000.000000+000"}]'
+
+    class Dummy:
+        returncode = 0
+        stdout = sample
+
+    monkeypatch.setattr(client.subprocess, "run", lambda *args, **kwargs: Dummy())
+    assert client._detect_windows_lease_expiration_epoch("192.168.1.10") == 1735689600
+
+
+def test_parse_windows_dmtf_invalid_returns_none():
+    assert _parse_windows_dmtf_to_epoch("invalid") is None
+    assert _parse_windows_dmtf_to_epoch("999") is None

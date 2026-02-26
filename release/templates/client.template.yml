@@ -7,3 +7,4 @@ client_private_key_path: "keys/client_private.pem"
 state_path: "data/client_state.json"
 watchdog_interval_seconds: 15
 client_port: 8765
+default_lease_ttl_seconds: 3600  # fallback, если нельзя определить lease через ОС
