@@ -6,4 +6,5 @@ clients_store_path: "data/clients.json"
 master_port: 9876
 client_port: 8765
 scan_timeout: 0.8
-veyon_update_command: "veyon-cli networkobjects import --json '{clients_json}'"
+veyon_update_command: 'veyon-cli networkobjects import {clients_file} format "%location%;%name%;%host%"'
+veyon_cleanup_command: ""

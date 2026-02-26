@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import asyncio
+import csv
 import json
 import logging
 import platform
 import shutil
 import subprocess
+import tempfile
 from datetime import datetime, timezone
 from ipaddress import IPv4Network
 from pathlib import Path
@@ -39,7 +41,13 @@ class MasterService:
         self.scan_timeout = float(cfg.get("scan_timeout", 0.8))
         self.private_key = load_private_key(cfg["master_private_key_path"])
         self.clients_store = JsonStore(cfg.get("clients_store_path", "data/clients.json"))
-        self.veyon_cmd = str(cfg.get("veyon_update_command", ""))
+        self.veyon_cmd = str(
+            cfg.get(
+                "veyon_update_command",
+                "veyon-cli networkobjects import {clients_file} format \"%location%;%name%;%host%\"",
+            )
+        )
+        self.veyon_cleanup_cmd = str(cfg.get("veyon_cleanup_command", ""))
         self.veyon_start_cmd = str(cfg.get("veyon_start_command", "veyon-master"))
         self.master_port = int(cfg.get("master_port", 9876))
 
@@ -133,9 +141,38 @@ class MasterService:
     def refresh_veyon(self, clients: dict[str, Any]) -> None:
         if not self.veyon_cmd:
             return
-        payload = json.dumps(clients, ensure_ascii=False)
-        cmd = self.veyon_cmd.format(clients_json=payload)
-        subprocess.run(cmd, shell=True, check=False)
+
+        rows = self._build_veyon_import_rows(clients)
+        payload = json.dumps({"clients": rows}, ensure_ascii=False)
+        clients_file = self._write_veyon_import_file(rows)
+        try:
+            if self.veyon_cleanup_cmd:
+                cleanup_cmd = self.veyon_cleanup_cmd.format(clients_file=clients_file, clients_json=payload)
+                subprocess.run(cleanup_cmd, shell=True, check=False)
+            cmd = self.veyon_cmd.format(clients_file=clients_file, clients_json=payload)
+            subprocess.run(cmd, shell=True, check=False)
+        finally:
+            Path(clients_file).unlink(missing_ok=True)
+
+    def _build_veyon_import_rows(self, clients: dict[str, Any]) -> list[dict[str, str]]:
+        rows: list[dict[str, str]] = []
+        for hostname in sorted(clients.keys()):
+            item = clients[hostname]
+            rows.append(
+                {
+                    "location": str(item.get("room", "")),
+                    "name": str(item.get("hostname", hostname)),
+                    "host": str(item.get("ip", "")),
+                }
+            )
+        return rows
+
+    def _write_veyon_import_file(self, rows: list[dict[str, str]]) -> str:
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8", newline="", delete=False) as handle:
+            writer = csv.writer(handle, delimiter=";")
+            for row in rows:
+                writer.writerow([row["location"], row["name"], row["host"]])
+            return handle.name
 
     def is_veyon_running(self) -> bool:
         system = platform.system()

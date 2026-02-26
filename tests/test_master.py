@@ -132,3 +132,31 @@ def test_notify_operator_linux(monkeypatch):
     svc.notify_operator("hello")
 
     assert calls == [["notify-send", "VODIN", "hello"]]
+
+
+def test_refresh_veyon_uses_clients_file_and_cleanup(monkeypatch):
+    svc = object.__new__(MasterService)
+    svc.veyon_cleanup_cmd = "cleanup {clients_file}"
+    svc.veyon_cmd = "import {clients_file}"
+
+    calls = []
+
+    def fake_run(cmd, shell=True, check=False):
+        file_path = cmd.split(" ", 1)[1]
+        content = open(file_path, encoding="utf-8").read().strip().splitlines()
+        calls.append((cmd, content))
+
+    monkeypatch.setattr(master.subprocess, "run", fake_run)
+
+    svc.refresh_veyon(
+        {
+            "pc2": {"hostname": "pc2", "ip": "10.0.0.2", "room": "202"},
+            "pc1": {"hostname": "pc1", "ip": "10.0.0.1", "room": "101"},
+        }
+    )
+
+    assert len(calls) == 2
+    assert calls[0][0].startswith("cleanup ")
+    assert calls[1][0].startswith("import ")
+    assert calls[0][1] == calls[1][1]
+    assert calls[1][1] == ["101;pc1;10.0.0.1", "202;pc2;10.0.0.2"]
