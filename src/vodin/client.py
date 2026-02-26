@@ -5,6 +5,7 @@ import json
 import logging
 import socket
 import subprocess
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -42,6 +43,55 @@ def detect_veyon_version() -> str:
         return "unknown"
 
 
+def _parse_nmcli_options(output: str) -> dict[str, str]:
+    options: dict[str, str] = {}
+    for line in output.splitlines():
+        if ":" not in line:
+            continue
+        _, value = line.split(":", 1)
+        if "=" not in value:
+            continue
+        key, raw = value.split("=", 1)
+        options[key.strip().lower()] = raw.strip()
+    return options
+
+
+def detect_lease_expiration_epoch(interface_name: str) -> int | None:
+    """Best-effort DHCP lease expiration timestamp (UTC epoch).
+
+    Returns None when OS/tooling does not expose lease expiration.
+    """
+    try:
+        completed = subprocess.run(
+            ["nmcli", "-t", "-f", "DHCP4.OPTION", "device", "show", interface_name],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=3,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+    if completed.returncode != 0:
+        return None
+
+    options = _parse_nmcli_options(completed.stdout)
+    if "expiry" in options:
+        try:
+            return int(options["expiry"])
+        except ValueError:
+            return None
+
+    if "dhcp_lease_time" in options:
+        try:
+            lease_seconds = int(options["dhcp_lease_time"])
+        except ValueError:
+            return None
+        return int(time.time()) + lease_seconds
+
+    return None
+
+
 class ClientService:
     def __init__(self, config: AppConfig) -> None:
         cfg = config.data
@@ -69,7 +119,7 @@ class ClientService:
             "room": self.room,
             "hostname": socket.gethostname(),
             "veyon-version": self.veyon_version,
-            "iat": None,
+            "exp": detect_lease_expiration_epoch(iface.name),
             "ip": iface.ip,
             "client_port": self.client_port,
             "client_public_key": export_public_key(self.client_priv_key.public_key()),

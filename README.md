@@ -6,7 +6,7 @@
 
 - **Клиент**:
   - поднимает HTTP API (`/info`, `/master/announce`) на порту `client_port` из конфигурации;
-  - отдает JSON с `room`, `hostname`, `veyon-version`, `iat` (если время аренды неизвестно — `null`), `ip`;
+  - отдает JSON с `room`, `hostname`, `veyon-version`, `exp` (best-effort: берется из DHCP lease, если ОС/инструменты дают это значение; иначе `null`), `ip`;
   - определяет версию Veyon автоматически через `veyon-cli --version`;
   - принимает подтверждение мастера по подписи Ed25519;
   - хранит подтвержденный `master_url` локально;
@@ -97,20 +97,29 @@ veyon_update_command: "veyon-cli networkobjects import --json '{clients_json}'"
 
 ## Сборка релизов (раздельно для ролей)
 
-Используется скрипт `scripts/build_release.py` (PyInstaller).
+Используется скрипт `scripts/build_release.py` (PyInstaller + Linux single-file Python build).
 
 ```bash
 pip install pyinstaller
 python scripts/build_release.py --role client --clean --onefile
-python scripts/build_release.py --role master --clean --onefile
+# ВАЖНО: --clean удаляет предыдущие артефакты (включая dist/vodin-client)
+python scripts/build_release.py --role master --onefile
+
+# Linux: единый Python-файл
+python scripts/build_release.py --role client --clean --linux-single-py
+python scripts/build_release.py --role master --linux-single-py
 ```
 
 Результат:
 
 - `dist/vodin-client/` — бинарник клиента + шаблон `client.yml`
 - `dist/vodin-master/` — бинарник мастера + шаблон `master.yml`
+- `dist/vodin-client-linux-py/vodin-client-linux.py` — единый Python-файл для Linux + шаблон `client.yml`
+- `dist/vodin-master-linux-py/vodin-master-linux.py` — единый Python-файл для Linux + шаблон `master.yml`
 
 Для onedir-сборки просто уберите `--onefile`.
+
+Для Linux single-file варианта используйте `--linux-single-py` (требуется установленный Python и зависимости в системе).
 
 ## Запуск
 
