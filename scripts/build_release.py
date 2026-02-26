@@ -3,12 +3,15 @@ from __future__ import annotations
 import argparse
 import base64
 import io
+import importlib.metadata
 import shutil
 import subprocess
 import sys
 import textwrap
 import zipfile
 from pathlib import Path
+
+from packaging.requirements import Requirement
 
 ROOT = Path(__file__).resolve().parents[1]
 TEMPLATES_DIR = ROOT / "release" / "templates"
@@ -19,6 +22,8 @@ ROLE_ENTRYPOINT = {
     "master": "vodin.master_entry:main",
 }
 
+RUNTIME_DISTRIBUTIONS = ["fastapi", "uvicorn", "httpx", "psutil", "cryptography", "pyyaml"]
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Build standalone release binary for VODIN role")
@@ -27,7 +32,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--linux-single-py",
         action="store_true",
-        help="Build a single self-contained Python file for Linux",
+        help="Build a single Python file for Linux with bundled dependencies",
     )
     parser.add_argument("--clean", action="store_true", help="Clean build/dist before building")
     return parser.parse_args()
@@ -48,6 +53,46 @@ def copy_template(role: str, out_dir: Path) -> None:
     shutil.copy2(src, dst)
 
 
+def _collect_dist_files(
+    dist_name: str,
+    archive: zipfile.ZipFile,
+    added: set[str],
+    visited: set[str],
+    required_top_level: set[str],
+) -> None:
+    normalized = dist_name.strip().lower().replace("_", "-")
+    if not normalized or normalized in visited:
+        return
+    visited.add(normalized)
+
+    try:
+        distribution = importlib.metadata.distribution(normalized)
+    except importlib.metadata.PackageNotFoundError:
+        if normalized in required_top_level:
+            raise SystemExit(
+                f"Required dependency '{dist_name}' is not installed in current environment. "
+                "Install dependencies before build."
+            )
+        return
+
+    if distribution.files:
+        for relative_file in distribution.files:
+            file_path = distribution.locate_file(relative_file)
+            if not file_path.exists() or file_path.is_dir():
+                continue
+            archive_path = relative_file.as_posix()
+            if archive_path in added:
+                continue
+            archive.write(file_path, archive_path)
+            added.add(archive_path)
+
+    for raw_requirement in distribution.requires or []:
+        parsed = Requirement(raw_requirement)
+        if parsed.marker and not parsed.marker.evaluate({"extra": ""}):
+            continue
+        _collect_dist_files(parsed.name, archive, added, visited, required_top_level)
+
+
 def build_python_single_file(role: str) -> None:
     role_dist = DIST_DIR / f"vodin-{role}-linux-py"
     role_dist.mkdir(parents=True, exist_ok=True)
@@ -56,6 +101,12 @@ def build_python_single_file(role: str) -> None:
     with zipfile.ZipFile(src_zip_bytes, "w", compression=zipfile.ZIP_DEFLATED) as archive:
         for path in (ROOT / "src").rglob("*.py"):
             archive.write(path, path.relative_to(ROOT / "src"))
+
+        added_files: set[str] = set()
+        visited_dists: set[str] = set()
+        required_top_level = {name.lower().replace("_", "-") for name in RUNTIME_DISTRIBUTIONS}
+        for distribution in RUNTIME_DISTRIBUTIONS:
+            _collect_dist_files(distribution, archive, added_files, visited_dists, required_top_level)
 
     entrypoint = ROLE_ENTRYPOINT[role]
     encoded = base64.b64encode(src_zip_bytes.getvalue()).decode("ascii")
