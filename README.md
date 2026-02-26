@@ -31,7 +31,13 @@ pip install -e .
 
 ## CLI
 
-- Универсальный режим: `vodin client|master ...`
+- Универсальный режим: `vodin <command> ...`
+- Основные команды:
+  - `vodin client --config client.yml`
+  - `vodin master --config master.yml`
+  - `vodin client-install-autostart --config client.yml`
+  - `vodin client-autostart-status`
+  - `vodin client-uninstall-autostart`
 - Отдельные entrypoint'ы:
   - `vodin-client --config client.yml`
   - `vodin-master --config master.yml`
@@ -155,54 +161,33 @@ curl -X POST http://127.0.0.1:9876/scan
 
 ## Автозапуск при старте ОС
 
-### Linux (systemd)
-
-Создайте unit-файл `/etc/systemd/system/vodin-client.service`:
-
-```ini
-[Unit]
-Description=VODIN Client Service
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-Type=simple
-User=vodin
-WorkingDirectory=/opt/vodin
-ExecStart=/opt/vodin/vodin-client --config /opt/vodin/client.yml
-Restart=always
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Команды включения автозапуска:
+Рекомендуемый способ — использовать встроенные CLI-команды:
 
 ```bash
-sudo systemctl daemon-reload
-sudo systemctl enable vodin-client.service
-sudo systemctl start vodin-client.service
-sudo systemctl status vodin-client.service
+# Установка автозапуска клиента
+vodin client-install-autostart --config client.yml
+
+# Проверка статуса
+vodin client-autostart-status
+
+# Удаление автозапуска
+vodin client-uninstall-autostart
 ```
 
-### Windows (Task Scheduler)
+Поддерживаются платформы:
 
-Запуск от имени администратора (PowerShell):
+- **Linux**: генерируется и устанавливается systemd unit (по умолчанию `vodin-client.service` в `/etc/systemd/system`).
+- **Windows**: создается Scheduled Task (по умолчанию `VODIN Client`) с запуском при старте системы от `SYSTEM`.
 
-```powershell
-$action = New-ScheduledTaskAction -Execute "C:\VODIN\vodin-client.exe" -Argument "--config C:\VODIN\client.yml"
-$trigger = New-ScheduledTaskTrigger -AtStartup
-$principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
-Register-ScheduledTask -TaskName "VODIN Client" -Action $action -Trigger $trigger -Principal $principal
+Можно переопределить имя unit/task через `--name`:
+
+```bash
+vodin client-install-autostart --config client.yml --name vodin-room101.service
+vodin client-autostart-status --name vodin-room101.service
+vodin client-uninstall-autostart --name vodin-room101.service
 ```
 
-Проверка/ручной запуск задачи:
-
-```powershell
-Get-ScheduledTask -TaskName "VODIN Client"
-Start-ScheduledTask -TaskName "VODIN Client"
-```
+> На Linux команды требуют прав на запись в `/etc/systemd/system` и вызов `systemctl` (обычно через `sudo`).
 
 ### Windows (NSSM, альтернатива)
 
