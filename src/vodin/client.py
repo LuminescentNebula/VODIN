@@ -185,6 +185,8 @@ class ClientService:
         self.client_port = int(cfg.get("client_port", 8765))
         self.veyon_version = detect_veyon_version()
         self.watchdog_interval_seconds = int(cfg.get("watchdog_interval_seconds", 15))
+        self.watchdog_fast_interval_seconds = int(cfg.get("watchdog_fast_interval_seconds", 5))
+        self.watchdog_lease_warning_seconds = int(cfg.get("watchdog_lease_warning_seconds", 60))
         fallback_ttl = cfg.get("default_lease_ttl_seconds")
         self.default_lease_ttl_seconds = int(fallback_ttl) if fallback_ttl is not None else None
         self.master_pub_key = load_public_key(cfg["master_public_key_path"])
@@ -226,17 +228,47 @@ class ClientService:
         return {"status": "ok"}
 
     async def ip_watchdog(self):
-        previous_ip = None
+        state = self.state_store.read()
+        previous_ip = state.get("last_ip")
         while True:
+            sleep_for = self.watchdog_interval_seconds
             try:
                 current_payload = self.payload()
                 current_ip = current_payload["ip"]
+                lease_epoch = current_payload.get("iat")
+                if lease_epoch is None:
+                    lease_epoch = current_payload.get("exp")
+
+                if lease_epoch is None:
+                    logger.info("ip watchdog: lease data unavailable for %s", current_ip)
+                else:
+                    lease_left = int(lease_epoch) - int(time.time())
+                    if lease_left <= self.watchdog_lease_warning_seconds:
+                        logger.warning(
+                            "ip watchdog: lease left=%ss for ip=%s (threshold=%ss)",
+                            lease_left,
+                            current_ip,
+                            self.watchdog_lease_warning_seconds,
+                        )
+                        sleep_for = max(1, min(self.watchdog_interval_seconds, self.watchdog_fast_interval_seconds))
+                    else:
+                        logger.info("ip watchdog: lease left=%ss for ip=%s", lease_left, current_ip)
+
                 if previous_ip and previous_ip != current_ip:
+                    state = self.state_store.read()
+                    state["last_ip"] = current_ip
+                    state["last_payload"] = current_payload
+                    state["ip_updated_at"] = int(time.time())
+                    self.state_store.write(state)
                     await self.notify_master(current_payload)
+                elif not previous_ip:
+                    state = self.state_store.read()
+                    state["last_ip"] = current_ip
+                    self.state_store.write(state)
                 previous_ip = current_ip
             except Exception as exc:  # noqa: BLE001
                 logger.warning("ip watchdog loop failed: %s", exc)
-            await asyncio.sleep(self.watchdog_interval_seconds)
+            await asyncio.sleep(sleep_for)
 
     async def notify_master(self, payload: dict[str, Any]) -> None:
         state = self.state_store.read()
