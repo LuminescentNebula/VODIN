@@ -198,6 +198,7 @@ class ClientService:
         return {
             "room": self.room,
             "hostname": socket.gethostname(),
+            "mac": iface.mac,
             "veyon-version": self.veyon_version,
             "exp": resolve_expiration_epoch(iface.name, iface.ip),
             "ip": iface.ip,

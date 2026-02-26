@@ -44,7 +44,7 @@ class MasterService:
         self.veyon_cmd = str(
             cfg.get(
                 "veyon_update_command",
-                "veyon-cli networkobjects import {clients_file} format \"%location%;%name%;%host%\"",
+                "veyon-cli networkobjects import {clients_file} format \"%location%;%name%;%host%;%mac%\"",
             )
         )
         self.veyon_cleanup_cmd = str(cfg.get("veyon_cleanup_command", ""))
@@ -163,6 +163,7 @@ class MasterService:
                     "location": str(item.get("room", "")),
                     "name": str(item.get("hostname", hostname)),
                     "host": str(item.get("ip", "")),
+                    "mac": str(item.get("mac", "")),
                 }
             )
         return rows
@@ -171,7 +172,7 @@ class MasterService:
         with tempfile.NamedTemporaryFile("w", encoding="utf-8", newline="", delete=False) as handle:
             writer = csv.writer(handle, delimiter=";")
             for row in rows:
-                writer.writerow([row["location"], row["name"], row["host"]])
+                writer.writerow([row["location"], row["name"], row["host"], row["mac"]])
             return handle.name
 
     def is_veyon_running(self) -> bool:

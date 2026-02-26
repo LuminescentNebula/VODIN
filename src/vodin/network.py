@@ -13,6 +13,7 @@ class InterfaceInfo:
     name: str
     ip: str
     netmask: str
+    mac: str | None = None
 
     @property
     def network(self) -> ipaddress.IPv4Network:
@@ -22,9 +23,33 @@ class InterfaceInfo:
 def _iter_ipv4_interfaces() -> Iterable[InterfaceInfo]:
     interfaces = psutil.net_if_addrs()
     for name, addresses in interfaces.items():
+        mac_address = _extract_mac_address(addresses)
         for address in addresses:
             if address.family == socket.AF_INET and address.address and address.netmask:
-                yield InterfaceInfo(name=name, ip=address.address, netmask=address.netmask)
+                yield InterfaceInfo(name=name, ip=address.address, netmask=address.netmask, mac=mac_address)
+
+
+def _extract_mac_address(addresses: list[object]) -> str | None:
+    for address in addresses:
+        family = getattr(address, "family", None)
+        value = getattr(address, "address", "")
+        if family not in {getattr(psutil, "AF_LINK", None), getattr(socket, "AF_PACKET", None)}:
+            continue
+        normalized = _normalize_mac(value)
+        if normalized:
+            return normalized
+    return None
+
+
+def _normalize_mac(value: str) -> str | None:
+    compact = value.replace(":", "").replace("-", "").strip().lower()
+    if len(compact) != 12:
+        return None
+    if any(char not in "0123456789abcdef" for char in compact):
+        return None
+    if compact == "000000000000":
+        return None
+    return ":".join(compact[index : index + 2] for index in range(0, 12, 2))
 
 
 def find_interface_for_network(cidr: str) -> InterfaceInfo:
