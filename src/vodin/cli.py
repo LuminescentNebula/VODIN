@@ -8,14 +8,24 @@ import uvicorn
 
 from .client import create_client_service
 from .master import create_master_service
+from .network import find_interface_for_network
 
 
 DEFAULT_MASTER_PORT = 9876
 
 
-def run_client(config_path: str, host: str, port: int | None, log_level: str) -> None:
+def run_client(config_path: str, host: str | None, port: int | None, log_level: str) -> None:
     service = create_client_service(config_path)
-    config = uvicorn.Config(service.app, host=host, port=port or service.client_port, log_level=log_level.lower())
+    bind_host = host
+    if bind_host is None:
+        bind_host = find_interface_for_network(service.network_cidr).ip
+
+    config = uvicorn.Config(
+        service.app,
+        host=bind_host,
+        port=port or service.client_port,
+        log_level=log_level.lower(),
+    )
     server = uvicorn.Server(config)
     loop = asyncio.get_event_loop()
     loop.create_task(service.ip_watchdog())
@@ -31,7 +41,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="vodin")
     parser.add_argument("mode", choices=["client", "master"])
     parser.add_argument("--config", required=True, help="Path to role-specific YAML config file")
-    parser.add_argument("--host", default="0.0.0.0")
+    parser.add_argument("--host", help="Bind host override; default is interface IP of configured network")
     parser.add_argument("--port", type=int)
     parser.add_argument("--log-level", default="INFO")
     return parser
