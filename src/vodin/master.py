@@ -47,7 +47,7 @@ class MasterService:
                 "veyon-cli networkobjects import {clients_file} format \"%location%;%name%;%host%;%mac%\"",
             )
         )
-        self.veyon_cleanup_cmd = str(cfg.get("veyon_cleanup_command", ""))
+        self.veyon_cleanup_cmd = str(cfg.get("veyon_cleanup_command", "veyon-cli remove {name}"))
         self.veyon_start_cmd = str(cfg.get("veyon_start_command", "veyon-master"))
         self.master_port = int(cfg.get("master_port", 9876))
 
@@ -147,8 +147,10 @@ class MasterService:
         clients_file = self._write_veyon_import_file(rows)
         try:
             if self.veyon_cleanup_cmd:
-                cleanup_cmd = self.veyon_cleanup_cmd.format(clients_file=clients_file, clients_json=payload)
-                subprocess.run(cleanup_cmd, shell=True, check=False)
+                for hostname in sorted(clients.keys()):
+                    item = clients[hostname]
+                    cleanup_cmd = self.veyon_cleanup_cmd.format(name=item.get("room", ""))
+                    subprocess.run(cleanup_cmd, shell=True, check=False)
             cmd = self.veyon_cmd.format(clients_file=clients_file, clients_json=payload)
             subprocess.run(cmd, shell=True, check=False)
         finally:

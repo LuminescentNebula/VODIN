@@ -7,4 +7,4 @@ master_port: 9876
 client_port: 8765
 scan_timeout: 0.8
 veyon_update_command: 'veyon-cli networkobjects import {clients_file} format "%location%;%name%;%host%;%mac%"'
-veyon_cleanup_command: ""
+veyon_cleanup_command: "veyon-cli remove {name}"
