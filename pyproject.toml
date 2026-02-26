@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vodin"
+version = "0.1.0"
+description = "LAN discovery service for Veyon master/clients with dynamic IP support"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "fastapi>=0.110.0",
+  "uvicorn>=0.27.0",
+  "httpx>=0.27.0",
+  "psutil>=5.9.0",
+  "cryptography>=42.0.0",
+  "pyyaml>=6.0.1"
+]
+
+[project.scripts]
+vodin = "vodin.cli:main"
+vodin-client = "vodin.client_entry:main"
+vodin-master = "vodin.master_entry:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]

@@ -1,0 +1,9 @@
+network_name: "school-lan"
+named_networks:
+  school-lan: "192.168.10.0/24"
+master_private_key_path: "keys/master_private.pem"
+clients_store_path: "data/clients.json"
+master_port: 9876
+client_port: 8765
+scan_timeout: 0.8
+veyon_update_command: "veyon-cli networkobjects import --json '{clients_json}'"
