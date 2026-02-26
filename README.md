@@ -84,7 +84,6 @@ client_private_key_path: "keys/client_private.pem"
 state_path: "data/client_state.json"
 watchdog_interval_seconds: 15
 client_port: 8765
-default_lease_ttl_seconds: 3600  # fallback при недоступном lease из ОС
 ```
 
 ### `master.yml`
@@ -133,7 +132,7 @@ python scripts/build_release.py --role master --linux-single-py
 
 Для Linux single-file варианта используйте `--linux-single-py` (требуется установленный Python и зависимости в системе).
 
-Примечание: lease определяется кроссплатформенно (Linux: `nmcli`, Windows: PowerShell/WMI). На Windows скрипт забирает raw `DHCPLeaseExpires` и парсит его в приложении, чтобы избежать ошибок вида `ToDateTime(...): dmtfDate вне диапазона`. Если источник lease недоступен, используется fallback `default_lease_ttl_seconds`.
+Примечание: lease определяется кроссплатформенно (Linux: `nmcli`, Windows: PowerShell/WMI). На Windows скрипт забирает raw `DHCPLeaseExpires` и парсит его в приложении, чтобы избежать ошибок вида `ToDateTime(...): dmtfDate вне диапазона`. Если источник lease недоступен, поле `exp` возвращается как `null`.
 
 ## Запуск
 

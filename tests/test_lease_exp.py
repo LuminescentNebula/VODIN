@@ -15,10 +15,9 @@ def test_parse_nmcli_options():
     assert parsed["dhcp_lease_time"] == "3600"
 
 
-def test_resolve_expiration_epoch_uses_fallback(monkeypatch):
+def test_resolve_expiration_epoch_returns_none_when_not_detected(monkeypatch):
     monkeypatch.setattr(client, "detect_lease_expiration_epoch", lambda *_: None)
-    monkeypatch.setattr(client.time, "time", lambda: 1_000)
-    assert resolve_expiration_epoch("eth0", "192.168.1.10", 120) == 1_120
+    assert resolve_expiration_epoch("eth0", "192.168.1.10") is None
 
 
 def test_detect_windows_lease_expiration_epoch_by_ip(monkeypatch):
