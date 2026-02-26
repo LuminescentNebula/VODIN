@@ -159,4 +159,14 @@ def test_refresh_veyon_uses_clients_file_and_cleanup(monkeypatch):
     assert calls[0][0].startswith("cleanup ")
     assert calls[1][0].startswith("import ")
     assert calls[0][1] == calls[1][1]
-    assert calls[1][1] == ["101;pc1;10.0.0.1", "202;pc2;10.0.0.2"]
+    assert calls[1][1] == ["101;pc1;10.0.0.1;", "202;pc2;10.0.0.2;"]
+
+
+def test_build_veyon_import_rows_includes_mac():
+    svc = object.__new__(MasterService)
+
+    rows = svc._build_veyon_import_rows({"pc1": {"hostname": "pc1", "ip": "10.0.0.1", "room": "101", "mac": "aa:bb:cc:dd:ee:ff"}})
+
+    assert rows == [
+        {"location": "101", "name": "pc1", "host": "10.0.0.1", "mac": "aa:bb:cc:dd:ee:ff"}
+    ]

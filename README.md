@@ -7,7 +7,7 @@
 - **Клиент**:
   - поднимает HTTP API (`/info`, `/master/announce`) на порту `client_port` из конфигурации;
   - bind'ится на IP интерфейса выбранной сети (`find_interface_for_network(resolve_network_by_name(...))`), если не задан `--host`;
-  - отдает JSON с `room`, `hostname`, `veyon-version`, `exp` (best-effort: Linux через `nmcli`, Windows через PowerShell/WMI DHCP lease; если недоступно — `default_lease_ttl_seconds`, иначе `null`), `ip`;
+  - отдает JSON с `room`, `hostname`, `mac`, `veyon-version`, `exp` (best-effort: Linux через `nmcli`, Windows через PowerShell/WMI DHCP lease; если недоступно — `default_lease_ttl_seconds`, иначе `null`), `ip`;
   - определяет версию Veyon автоматически через `veyon-cli --version`;
   - принимает подтверждение мастера по подписи Ed25519;
   - хранит подтвержденный `master_url` локально;
@@ -98,11 +98,11 @@ clients_store_path: "data/clients.json"
 master_port: 9876
 client_port: 8765
 scan_timeout: 0.8
-veyon_update_command: 'veyon-cli networkobjects import {clients_file} format "%location%;%name%;%host%"'
+veyon_update_command: 'veyon-cli networkobjects import {clients_file} format "%location%;%name%;%host%;%mac%"'
 veyon_cleanup_command: ""  # опционально: команда очистки ранее импортированных объектов перед новым импортом
 ```
 
-`{clients_file}` — временный CSV-файл, который мастер генерирует перед импортом в формате `%location%;%name%;%host%` (room, hostname, ip).
+`{clients_file}` — временный CSV-файл, который мастер генерирует перед импортом в формате `%location%;%name%;%host%;%mac%` (room, hostname, ip, mac).
 
 
 Шаблоны также лежат в `release/templates/client.template.yml` и `release/templates/master.template.yml`.
