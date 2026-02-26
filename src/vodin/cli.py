@@ -6,8 +6,25 @@ import logging
 
 import uvicorn
 
-from .client import DEFAULT_CLIENT_PORT, create_client_service
+from .client import create_client_service
 from .master import create_master_service
+
+
+DEFAULT_MASTER_PORT = 9876
+
+
+def run_client(config_path: str, host: str, port: int | None, log_level: str) -> None:
+    service = create_client_service(config_path)
+    config = uvicorn.Config(service.app, host=host, port=port or service.client_port, log_level=log_level.lower())
+    server = uvicorn.Server(config)
+    loop = asyncio.get_event_loop()
+    loop.create_task(service.ip_watchdog())
+    loop.run_until_complete(server.serve())
+
+
+def run_master(config_path: str, host: str, port: int, log_level: str) -> None:
+    service = create_master_service(config_path)
+    uvicorn.run(service.app, host=host, port=port, log_level=log_level.lower())
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -22,21 +39,14 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def main() -> None:
     args = _build_parser().parse_args()
-    logging.basicConfig(level=getattr(logging, args.log_level.upper(), logging.INFO))
+    log_level = args.log_level.upper()
+    logging.basicConfig(level=getattr(logging, log_level, logging.INFO))
 
     if args.mode == "client":
-        service = create_client_service(args.config)
-        port = args.port or DEFAULT_CLIENT_PORT
-        config = uvicorn.Config(service.app, host=args.host, port=port, log_level=args.log_level.lower())
-        server = uvicorn.Server(config)
-        loop = asyncio.get_event_loop()
-        loop.create_task(service.ip_watchdog())
-        loop.run_until_complete(server.serve())
+        run_client(args.config, args.host, args.port, log_level)
         return
 
-    service = create_master_service(args.config)
-    port = args.port or 9876
-    uvicorn.run(service.app, host=args.host, port=port, log_level=args.log_level.lower())
+    run_master(args.config, args.host, args.port or DEFAULT_MASTER_PORT, log_level)
 
 
 if __name__ == "__main__":

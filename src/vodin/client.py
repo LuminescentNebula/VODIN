@@ -19,7 +19,6 @@ from .network import find_interface_for_network, resolve_network_by_name
 from .storage import JsonStore
 
 logger = logging.getLogger(__name__)
-DEFAULT_CLIENT_PORT = 8765
 
 
 class MasterAnnouncePayload(BaseModel):
@@ -50,6 +49,7 @@ class ClientService:
         self.network_name = str(cfg["network_name"])
         named_networks = cfg.get("named_networks", {})
         self.network_cidr = resolve_network_by_name(self.network_name, named_networks)
+        self.client_port = int(cfg.get("client_port", 8765))
         self.veyon_version = detect_veyon_version()
         self.watchdog_interval_seconds = int(cfg.get("watchdog_interval_seconds", 15))
         self.master_pub_key = load_public_key(cfg["master_public_key_path"])
@@ -71,6 +71,7 @@ class ClientService:
             "veyon-version": self.veyon_version,
             "iat": None,
             "ip": iface.ip,
+            "client_port": self.client_port,
             "client_public_key": export_public_key(self.client_priv_key.public_key()),
             "network": self.network_name,
         }

@@ -3,9 +3,9 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "VODIN"
+name = "vodin"
 version = "0.1.0"
-description = "Veyon over dynamic IP network"
+description = "LAN discovery service for Veyon master/clients with dynamic IP support"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
@@ -19,6 +19,8 @@ dependencies = [
 
 [project.scripts]
 vodin = "vodin.cli:main"
+vodin-client = "vodin.client_entry:main"
+vodin-master = "vodin.master_entry:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

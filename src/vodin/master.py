@@ -14,7 +14,6 @@ from cryptography.hazmat.primitives import serialization
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-from .client import DEFAULT_CLIENT_PORT
 from .config import AppConfig
 from .crypto import load_private_key, sign_message, verify_signature
 from .network import find_interface_for_network, resolve_network_by_name
@@ -34,6 +33,7 @@ class MasterService:
         self.network_name = str(cfg["network_name"])
         named_networks = cfg.get("named_networks", {})
         self.network_cidr = resolve_network_by_name(self.network_name, named_networks)
+        self.client_port = int(cfg.get("client_port", 8765))
         self.scan_timeout = float(cfg.get("scan_timeout", 0.8))
         self.private_key = load_private_key(cfg["master_private_key_path"])
         self.clients_store = JsonStore(cfg.get("clients_store_path", "data/clients.json"))
@@ -99,7 +99,7 @@ class MasterService:
         return found
 
     async def _probe_host(self, http_client: httpx.AsyncClient, ip: str) -> dict[str, Any] | None:
-        base = f"http://{ip}:{DEFAULT_CLIENT_PORT}"
+        base = f"http://{ip}:{self.client_port}"
         try:
             response = await http_client.get(f"{base}/info")
             response.raise_for_status()
