@@ -22,7 +22,16 @@ ROLE_ENTRYPOINT = {
     "master": "vodin.master_entry:main",
 }
 
-RUNTIME_DISTRIBUTIONS = ["fastapi", "uvicorn", "httpx", "psutil", "cryptography", "pyyaml"]
+RUNTIME_DISTRIBUTIONS = [
+    "fastapi",
+    "pydantic",
+    "pydantic-core",
+    "uvicorn",
+    "httpx",
+    "psutil",
+    "cryptography",
+    "pyyaml",
+]
 
 
 def parse_args() -> argparse.Namespace:
