@@ -116,7 +116,7 @@ python scripts/build_release.py --role client --clean --onefile
 # ВАЖНО: --clean удаляет предыдущие артефакты (включая dist/vodin-client)
 python scripts/build_release.py --role master --onefile
 
-# Linux: единый Python-файл
+# Linux: единый Python-файл (с уже встроенными Python-зависимостями)
 python scripts/build_release.py --role client --clean --linux-single-py
 python scripts/build_release.py --role master --linux-single-py
 ```
@@ -125,12 +125,12 @@ python scripts/build_release.py --role master --linux-single-py
 
 - `dist/vodin-client/` — бинарник клиента + шаблон `client.yml`
 - `dist/vodin-master/` — бинарник мастера + шаблон `master.yml`
-- `dist/vodin-client-linux-py/vodin-client-linux.py` — единый Python-файл для Linux + шаблон `client.yml`
-- `dist/vodin-master-linux-py/vodin-master-linux.py` — единый Python-файл для Linux + шаблон `master.yml`
+- `dist/vodin-client-linux-py/vodin-client-linux.py` — единый Python-файл для Linux (исходники + зависимости внутри) + шаблон `client.yml`
+- `dist/vodin-master-linux-py/vodin-master-linux.py` — единый Python-файл для Linux (исходники + зависимости внутри) + шаблон `master.yml`
 
 Для onedir-сборки просто уберите `--onefile`.
 
-Для Linux single-file варианта используйте `--linux-single-py` (требуется установленный Python и зависимости в системе).
+Для Linux single-file варианта используйте `--linux-single-py` (достаточно установленного Python; зависимости дополнительно ставить не нужно).
 
 Примечание: lease определяется кроссплатформенно (Linux: `nmcli`, Windows: PowerShell/WMI). На Windows скрипт забирает raw `DHCPLeaseExpires` и парсит его в приложении, чтобы избежать ошибок вида `ToDateTime(...): dmtfDate вне диапазона`. Если источник lease недоступен, поле `exp` возвращается как `null`.
 
