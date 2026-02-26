@@ -91,8 +91,12 @@ clients_store_path: "data/clients.json"
 master_port: 9876
 client_port: 8765
 scan_timeout: 0.8
-veyon_update_command: "veyon-cli networkobjects import --json '{clients_json}'"
+veyon_update_command: 'veyon-cli networkobjects import {clients_file} format "%location%;%name%;%host%"'
+veyon_cleanup_command: ""  # опционально: команда очистки ранее импортированных объектов перед новым импортом
 ```
+
+`{clients_file}` — временный CSV-файл, который мастер генерирует перед импортом в формате `%location%;%name%;%host%` (room, hostname, ip).
+
 
 Шаблоны также лежат в `release/templates/client.template.yml` и `release/templates/master.template.yml`.
 
