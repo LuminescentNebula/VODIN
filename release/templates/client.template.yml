@@ -1,0 +1,9 @@
+room: "Аудитория-101"
+network_name: "school-lan"
+named_networks:
+  school-lan: "192.168.10.0/24"
+master_public_key_path: "keys/master_public.pem"
+client_private_key_path: "keys/client_private.pem"
+state_path: "data/client_state.json"
+watchdog_interval_seconds: 15
+client_port: 8765
