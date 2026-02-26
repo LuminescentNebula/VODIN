@@ -3,6 +3,8 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import platform
+import shutil
 import subprocess
 from datetime import datetime, timezone
 from ipaddress import IPv4Network
@@ -38,6 +40,7 @@ class MasterService:
         self.private_key = load_private_key(cfg["master_private_key_path"])
         self.clients_store = JsonStore(cfg.get("clients_store_path", "data/clients.json"))
         self.veyon_cmd = str(cfg.get("veyon_update_command", ""))
+        self.veyon_start_cmd = str(cfg.get("veyon_start_command", "veyon-master"))
         self.master_port = int(cfg.get("master_port", 9876))
 
         self.app = FastAPI(title="VODIN Master")
@@ -72,7 +75,15 @@ class MasterService:
 
         if old_ip != payload.get("ip"):
             logger.info("Client %s changed ip %s -> %s", hostname, old_ip, payload.get("ip"))
+            was_running = self.is_veyon_running()
+            if was_running:
+                self.notify_operator(
+                    f"Veyon is running and will be restarted after configuration refresh for {hostname}."
+                )
+                self.stop_veyon()
             self.refresh_veyon(clients)
+            if was_running:
+                self.start_veyon()
 
         return {"status": "ok"}
 
@@ -125,6 +136,61 @@ class MasterService:
         payload = json.dumps(clients, ensure_ascii=False)
         cmd = self.veyon_cmd.format(clients_json=payload)
         subprocess.run(cmd, shell=True, check=False)
+
+    def is_veyon_running(self) -> bool:
+        system = platform.system()
+        if system == "Windows":
+            result = subprocess.run(
+                ["tasklist", "/FI", "IMAGENAME eq veyon-master.exe"],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            return "veyon-master.exe" in result.stdout.lower()
+
+        result = subprocess.run(
+            ["pgrep", "-f", "veyon-master"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        return result.returncode == 0
+
+    def stop_veyon(self) -> None:
+        system = platform.system()
+        if system == "Windows":
+            subprocess.run(["taskkill", "/IM", "veyon-master.exe", "/F"], check=False)
+            return
+
+        subprocess.run(["pkill", "-f", "veyon-master"], check=False)
+
+    def start_veyon(self) -> None:
+        system = platform.system()
+        if system == "Windows":
+            subprocess.run(["cmd", "/c", "start", "", self.veyon_start_cmd], check=False)
+            return
+
+        subprocess.Popen([self.veyon_start_cmd], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    def notify_operator(self, message: str) -> None:
+        logger.warning(message)
+        system = platform.system()
+        try:
+            if system == "Linux" and shutil.which("notify-send"):
+                subprocess.run(["notify-send", "VODIN", message], check=False)
+            elif system == "Darwin" and shutil.which("osascript"):
+                subprocess.run(
+                    ["osascript", "-e", f'display notification "{message}" with title "VODIN"'],
+                    check=False,
+                )
+            elif system == "Windows":
+                script = (
+                    "[reflection.assembly]::loadwithpartialname('System.Windows.Forms') | Out-Null;"
+                    f"[System.Windows.Forms.MessageBox]::Show('{message}','VODIN')"
+                )
+                subprocess.run(["powershell", "-Command", script], check=False)
+        except Exception:
+            logger.debug("Operator notification failed", exc_info=True)
 
 
 def create_master_service(config_path: str | Path) -> MasterService:
