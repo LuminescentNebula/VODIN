@@ -9,7 +9,7 @@ from .cli import run_client
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="vodin-client")
     parser.add_argument("--config", default="client.yml")
-    parser.add_argument("--host", default="0.0.0.0")
+    parser.add_argument("--host", help="Bind host override; default is interface IP of configured network")
     parser.add_argument("--port", type=int)
     parser.add_argument("--log-level", default="INFO")
     return parser

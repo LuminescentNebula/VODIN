@@ -6,6 +6,7 @@
 
 - **Клиент**:
   - поднимает HTTP API (`/info`, `/master/announce`) на порту `client_port` из конфигурации;
+  - bind'ится на IP интерфейса выбранной сети (`find_interface_for_network(resolve_network_by_name(...))`), если не задан `--host`;
   - отдает JSON с `room`, `hostname`, `veyon-version`, `exp` (best-effort: Linux через `nmcli`, Windows через PowerShell/WMI DHCP lease; если недоступно — `default_lease_ttl_seconds`, иначе `null`), `ip`;
   - определяет версию Veyon автоматически через `veyon-cli --version`;
   - принимает подтверждение мастера по подписи Ed25519;
@@ -129,9 +130,13 @@ python scripts/build_release.py --role master --linux-single-py
 Клиент:
 
 ```bash
-vodin client --config client.yml --host 0.0.0.0
+vodin client --config client.yml
 # или
 vodin-client --config client.yml
+
+# По умолчанию клиент bind'ится на IP интерфейса, найденного для `network_name`/`named_networks`.
+# Ручное переопределение при необходимости:
+vodin client --config client.yml --host 0.0.0.0
 ```
 
 Мастер:
