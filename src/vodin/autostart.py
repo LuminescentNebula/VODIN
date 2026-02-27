@@ -26,9 +26,9 @@ def _detect_client_command(config_path: str) -> tuple[str, list[str]]:
     if getattr(sys, "frozen", False):
         return sys.executable, ["client", "--config", config]
 
-    vodin_client = shutil.which("vodin-client")
+    vodin_client = shutil.which("vodin")
     if vodin_client:
-        return vodin_client, ["--config", config]
+        return vodin_client, ["client", "--config", config]
 
     vodin = shutil.which("vodin")
     if vodin:
