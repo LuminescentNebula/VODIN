@@ -138,36 +138,15 @@ def _detect_windows_lease_expiration_epoch(ip_address: str) -> int | None:
     return None
 
 
-def _parse_windows_dmtf_to_epoch(value: str) -> int | None:
-    # Example: 20261231235959.000000+180
-    match = re.fullmatch(r"(\d{14})\.\d{6}([+-])(\d{3})", value.strip())
-    if not match:
-        return None
+def _parse_windows_dmtf_to_epoch(lease: str) -> int | None:
+    value = lease[6:-2]
+    return int(value)/1000 - datetime.now().second 
 
-    base_raw, sign, offset_minutes_raw = match.groups()
-    try:
-        local_dt = datetime.strptime(base_raw, "%Y%m%d%H%M%S")
-        offset_minutes = int(offset_minutes_raw)
-    except ValueError:
-        return None
-
-    offset = timedelta(minutes=offset_minutes)
-    if sign == "-":
-        offset = -offset
-
-    utc_dt = (local_dt - offset).replace(tzinfo=timezone.utc)
-    return int(utc_dt.timestamp())
-
-
-def detect_lease_expiration_epoch(interface_name: str, ip_address: str) -> int | None:
+def resolve_expiration_epoch(interface_name: str, ip_address: str) -> int | None:
     """Best-effort DHCP lease expiration timestamp (UTC epoch)."""
     if sys.platform.startswith("win"):
         return _detect_windows_lease_expiration_epoch(ip_address)
     return _detect_linux_lease_expiration_epoch(interface_name)
-
-
-def resolve_expiration_epoch(interface_name: str, ip_address: str) -> int | None:
-    return detect_lease_expiration_epoch(interface_name, ip_address)
 
 
 class ClientService:
