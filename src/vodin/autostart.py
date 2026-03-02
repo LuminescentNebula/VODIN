@@ -85,25 +85,70 @@ def _build_windows_task_command(config_path: str) -> str:
 
 
 def _install_windows(config_path: str, task_name: str) -> str:
-    task_cmd = _build_windows_task_command(config_path)
-    _run(
+        task_cmd = _build_windows_task_command(config_path)
+        temp_file_name = "vodin_task.xml"
+        _run(
+            "echo",
+            """<?xml version="1.0" encoding="UTF-16"?>
+<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+  <Triggers>
+    <BootTrigger>
+      <Enabled>true</Enabled>
+    </BootTrigger>
+  </Triggers>
+  <Settings>
+    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+    <StopIfGoingOnBatteries>true</StopIfGoingOnBatteries>
+    <AllowHardTerminate>true</AllowHardTerminate>
+    <StartWhenAvailable>true</StartWhenAvailable>
+    <RunOnlyIfNetworkAvailable>false</RunOnlyIfNetworkAvailable>
+    <IdleSettings>
+      <StopOnIdleEnd>true</StopOnIdleEnd>
+      <RestartOnIdle>false</RestartOnIdle>
+    </IdleSettings>
+    <AllowStartOnDemand>true</AllowStartOnDemand>
+    <Enabled>true</Enabled>
+    <Hidden>false</Hidden>
+    <RunOnlyIfIdle>false</RunOnlyIfIdle>
+    <WakeToRun>false</WakeToRun>
+  </Settings>
+  <Actions Context="Author">
+    <Exec>
+      <Command>"C:\Program Files\VODIN\.venv\Scripts\vodin.EXE"</Command>
+      <Arguments>"client" "--config" "C:\Program Files\VODIN\client.yml"</Arguments>
+    </Exec>
+  </Actions>
+</Task>
+""",
+">",
+temp_file_name
+        )
+        _run(
         [
             "schtasks",
             "/Create",
             "/TN",
             task_name,
-            "/SC",
-            "ONSTART",
-            "/RL",
-            "HIGHEST",
-            "/RU",
-            "SYSTEM",
+            "/XML",
+            temp_file_name,
+            "/F",
+        ])
+        _run(
+        [
+            "schtasks",
+            "/Change",
+            "/TN",
+            task_name,
             "/TR",
             task_cmd,
             "/F",
-        ]
-    )
-    return f"Installed Scheduled Task '{task_name}'"
+        ])
+        _run(
+            "rm",
+            temp_file_name
+        )
+        return f"Installed Scheduled Task '{task_name}'"
 
 
 def _status_windows(task_name: str) -> str:
