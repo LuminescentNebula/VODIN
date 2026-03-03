@@ -54,6 +54,8 @@ class MasterService:
         self.app = FastAPI(title="VODIN Master")
         self.app.post("/client/update")(self.client_update)
         self.app.post("/scan")(self.trigger_scan)
+        self.app.get("/scan")(self.trigger_scan)
+
 
     async def trigger_scan(self):
         found = await self.scan_network()
