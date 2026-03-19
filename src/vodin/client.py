@@ -30,21 +30,6 @@ class MasterAnnouncePayload(BaseModel):
     signature: str
 
 
-def detect_veyon_version() -> str:
-    try:
-        completed = subprocess.run(
-            ["veyon-cli", "--version"],
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=3,
-        )
-        line = (completed.stdout or completed.stderr).strip().splitlines()
-        return line[0] if line else "unknown"
-    except (OSError, subprocess.SubprocessError):
-        return "unknown"
-
-
 def _parse_nmcli_options(output: str) -> dict[str, str]:
     options: dict[str, str] = {}
     for line in output.splitlines():
@@ -157,7 +142,6 @@ class ClientService:
         named_networks = cfg.get("named_networks", {})
         self.network_cidr = resolve_network_by_name(self.network_name, named_networks)
         self.client_port = int(cfg.get("client_port", 8765))
-        self.veyon_version = detect_veyon_version()
         self.watchdog_interval_seconds = int(cfg.get("watchdog_interval_seconds", 15))
         self.watchdog_fast_interval_seconds = int(cfg.get("watchdog_fast_interval_seconds", 5))
         self.watchdog_lease_warning_seconds = int(cfg.get("watchdog_lease_warning_seconds", 60))
@@ -178,7 +162,6 @@ class ClientService:
             "room": self.room,
             "hostname": socket.gethostname(),
             "mac": iface.mac,
-            "veyon-version": self.veyon_version,
             "exp": resolve_expiration_epoch(iface.name, iface.ip),
             "ip": iface.ip,
             "client_port": self.client_port,
