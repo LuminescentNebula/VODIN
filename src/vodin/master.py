@@ -49,6 +49,7 @@ class MasterService:
         )
         self.veyon_cleanup_cmd = str(cfg.get("veyon_cleanup_command", "veyon-cli remove {name}"))
         self.veyon_start_cmd = str(cfg.get("veyon_start_command", "veyon-master"))
+        self.hosts_update = str(cfg.get("hosts_update_command", 'echo "{host}    {name}" | tee -a /etc/hosts'))
         self.master_port = int(cfg.get("master_port", 9876))
 
         self.app = FastAPI(title="VODIN Master")
@@ -91,7 +92,8 @@ class MasterService:
                     f"Veyon is running and will be restarted after configuration refresh for {hostname}."
                 )
                 self.stop_veyon()
-            self.refresh_veyon(clients)
+            #self.refresh_veyon(clients)
+            self.refresh_hosts(clients)
             if was_running:
                 self.start_veyon()
 
@@ -100,10 +102,16 @@ class MasterService:
     async def scan_network(self) -> list[dict[str, Any]]:
         iface = find_interface_for_network(self.network_cidr)
         network: IPv4Network = iface.network
-        candidates = [str(ip) for ip in network.hosts()]
+        #candidates = [str(ip) for ip in network.hosts()]
+        candidates = []
+        for k in range(62,64):
+            for l in range(0,256):
+                candidates.append("172.28."+str(k)+"."+str(l))
+        
         found: list[dict[str, Any]] = []
 
-        async with httpx.AsyncClient(timeout=self.scan_timeout) as client:
+        limits = httpx.Limits(max_keepalive_connections=64, max_connections=64)
+        async with httpx.AsyncClient(timeout=self.scan_timeout, limits=limits) as client:
             tasks = [self._probe_host(client, ip) for ip in candidates]
             for coro in asyncio.as_completed(tasks):
                 result = await coro
@@ -115,7 +123,8 @@ class MasterService:
             for item in found:
                 current[item["hostname"]] = item
             self.clients_store.write(current)
-            self.refresh_veyon(current)
+            #self.refresh_veyon(current)
+            self.refresh_hosts(current)
 
         return found
 
@@ -127,7 +136,8 @@ class MasterService:
             payload = response.json()
             await self._announce_master(http_client, base)
             return payload
-        except Exception:
+        except Exception as e:
+            print(ip, type(e))
             return None
 
     async def _announce_master(self, http_client: httpx.AsyncClient, client_base: str) -> None:
@@ -139,6 +149,18 @@ class MasterService:
         data = {"master_url": master_url, "timestamp": timestamp, "signature": signature}
         response = await http_client.post(f"{client_base}/master/announce", json=data)
         response.raise_for_status()
+
+    def refresh_hosts(self, clients: dict[str, Any]) -> None:
+        if not self.hosts_update:
+            return
+        subprocess.run("""echo "127.0.0.1               localhost.localdomain localhost
+::1             localhost6.localdomain6 localhost6" | sudo tee /etc/hosts
+        """, shell=True, check=False)
+        for hostname in sorted(clients.keys()):
+            item = clients[hostname]
+            cmd = self.hosts_update.format(host=str(item.get("ip", "")), name=str(item.get("hostname", hostname)))
+            subprocess.run(cmd, shell=True, check=False)
+
 
     def refresh_veyon(self, clients: dict[str, Any]) -> None:
         if not self.veyon_cmd:
