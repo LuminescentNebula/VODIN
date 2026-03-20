@@ -13,7 +13,7 @@ from .autostart import (
 )
 from .client import create_client_service
 from .master import create_master_service
-from .network import find_interface_for_network
+from .network import find_interface_by_name
 
 
 DEFAULT_MASTER_PORT = 9876
@@ -23,19 +23,14 @@ def run_client(config_path: str, host: str | None, port: int | None, log_level: 
     service = create_client_service(config_path)
     bind_host = host
     if bind_host is None:
-        bind_host = find_interface_for_network(service.network_cidr).ip
+        bind_host = find_interface_by_name(service.network_name).ip
 
-    config = uvicorn.Config(
+    uvicorn.run(
         service.app,
         host=bind_host,
         port=port or service.client_port,
         log_level=log_level.lower(),
     )
-    server = uvicorn.Server(config)
-    loop = asyncio.get_event_loop()
-    loop.create_task(service.ip_watchdog())
-    loop.run_until_complete(server.serve())
-
 
 def run_master(config_path: str, host: str, port: int, log_level: str) -> None:
     service = create_master_service(config_path)
@@ -48,6 +43,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     client = subparsers.add_parser("client")
     client.add_argument("--config", required=True, help="Path to client YAML config file")
+    client.add_argument("--name", default="Study.MOS")
     client.add_argument("--host", default="0.0.0.0")
     client.add_argument("--port", type=int)
     client.add_argument("--log-level", default="INFO")

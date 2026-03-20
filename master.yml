@@ -1,0 +1,4 @@
+network: "172.28.62.0/23"
+clients_store_path: "data/clients.json"
+master_port: 9876
+scan_timeout: 60
