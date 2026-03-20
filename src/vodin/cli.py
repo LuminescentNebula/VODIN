@@ -43,7 +43,6 @@ def _build_parser() -> argparse.ArgumentParser:
 
     client = subparsers.add_parser("client")
     client.add_argument("--config", required=True, help="Path to client YAML config file")
-    client.add_argument("--name", default="Study.MOS")
     client.add_argument("--host", default="0.0.0.0")
     client.add_argument("--port", type=int)
     client.add_argument("--log-level", default="INFO")
